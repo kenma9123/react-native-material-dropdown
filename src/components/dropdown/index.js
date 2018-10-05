@@ -11,6 +11,7 @@ import {
   Platform,
   ViewPropTypes,
   I18nManager,
+  Keyboard
 } from 'react-native';
 import Ripple from 'react-native-material-ripple';
 import { TextField } from 'react-native-material-textfield';
@@ -162,6 +163,8 @@ export default class Dropdown extends PureComponent {
     this.onClose = this.onClose.bind(this);
     this.onSelect = this.onSelect.bind(this);
     this.onLayout = this.onLayout.bind(this);
+    this._keyboardDidShow = this._keyboardDidShow.bind(this);
+    this._keyboardDidHide = this._keyboardDidHide.bind(this);
 
     this.updateRippleRef = this.updateRef.bind(this, 'ripple');
     this.updateContainerRef = this.updateRef.bind(this, 'container');
@@ -196,10 +199,36 @@ export default class Dropdown extends PureComponent {
 
   componentDidMount() {
     this.mounted = true;
+
+    let { enableSearch = false } = this.props;
+    if (enableSearch) {
+      this.keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', this._keyboardDidShow);
+      this.keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', this._keyboardDidHide);
+    }
   }
 
   componentWillUnmount() {
     this.mounted = false;
+
+    let { enableSearch = false } = this.props;
+    if (enableSearch) {
+      this.keyboardDidShowListener.remove();
+      this.keyboardDidHideListener.remove();
+    }
+  }
+
+  _keyboardDidShow(e) {
+    this.setState({
+      keyboardHeight: e.endCoordinates.height,
+      top: this.state.top - e.endCoordinates.height
+    });
+  }
+
+  _keyboardDidHide(e) {
+    this.setState({
+      keyboardHeight: 0,
+      top: this.state.top + this.state.keyboardHeight
+    });
   }
 
   onPress(event) {
@@ -583,7 +612,17 @@ export default class Dropdown extends PureComponent {
       rippleOpacity,
       rippleDuration,
       shadeOpacity,
+
+      enableSearch,
+      searchProperty,
+      searchTerm,
     } = this.props;
+
+    if (enableSearch) {
+      if (!(new RegExp(`${searchTerm}`, "gi").test(item[searchProperty]))) {
+        return null;
+      }
+    }
 
     let props = propsExtractor(item, index);
 
@@ -635,6 +674,19 @@ export default class Dropdown extends PureComponent {
         </Text>
       </DropdownItem>
     );
+  }
+
+  renderSearchInput() {
+    let {
+      enableSearch,
+      searchComponent
+    } = this.props;
+
+    if (!enableSearch) {
+      return null;
+    }
+
+    return searchComponent();
   }
 
   render() {
@@ -748,6 +800,8 @@ export default class Dropdown extends PureComponent {
               style={[styles.picker, pickerStyle, pickerStyleOverrides]}
               onStartShouldSetResponder={() => true}
             >
+              {this.renderSearchInput()}
+
               <FlatList
                 ref={this.updateScrollRef}
                 data={data}
@@ -756,6 +810,7 @@ export default class Dropdown extends PureComponent {
                 keyExtractor={this.keyExtractor}
                 scrollEnabled={visibleItemCount < itemCount}
                 contentContainerStyle={styles.scrollContainer}
+                keyboardShouldPersistTaps="always"
               />
             </View>
           </Animated.View>
